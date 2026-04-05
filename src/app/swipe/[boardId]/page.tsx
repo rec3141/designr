@@ -431,70 +431,74 @@ export default function SwipePage() {
 
   return (
     <main className="swipe-stage">
-      <div className="swipe-progress">
-        <span>{boardName} · {progressLabel}</span>
-        <div className="mode-toggle" role="group" aria-label="Session mode">
-          <button
-            className={`mode-btn ${mode === "single" ? "active" : ""}`}
-            onClick={() => canChangeMode && setMode("single")}
-            disabled={!canChangeMode}
-            title={canChangeMode ? "Swipe solo" : "Locked after first swipe"}
-          >
-            Solo
-          </button>
-          <button
-            className={`mode-btn ${mode === "dual" ? "active" : ""}`}
-            onClick={() => canChangeMode && setMode("dual")}
-            disabled={!canChangeMode}
-            title={canChangeMode ? "Swipe together — both users take turns" : "Locked after first swipe"}
-          >
-            2P
-          </button>
-        </div>
-        <div className="name-inputs" aria-label={mode === "dual" ? "Player names" : "Your name"}>
-          <div className={`name-slot user-a ${mode === "single" || activeUser === "A" ? "active" : ""}`}>
-            <input
-              className="name-input user-a"
-              value={userNames.A}
-              onChange={(e) => setUserNames((n) => ({ ...n, A: e.target.value }))}
-              placeholder={mode === "dual" ? "User A" : "Your name"}
-              maxLength={24}
-              aria-label={mode === "dual" ? "User A name" : "Your name"}
-            />
-            {recordingFor === "A" && <span className="rec-dot" />}
+      <div className="swipe-topbar">
+        <div className="swipe-topbar-row">
+          <div className="mode-toggle" role="group" aria-label="Session mode">
+            <button
+              className={`mode-btn ${mode === "single" ? "active" : ""}`}
+              onClick={() => canChangeMode && setMode("single")}
+              disabled={!canChangeMode}
+              title={canChangeMode ? "Swipe solo" : "Locked after first swipe"}
+            >
+              Solo
+            </button>
+            <button
+              className={`mode-btn ${mode === "dual" ? "active" : ""}`}
+              onClick={() => canChangeMode && setMode("dual")}
+              disabled={!canChangeMode}
+              title={canChangeMode ? "Swipe together — both users take turns" : "Locked after first swipe"}
+            >
+              2P
+            </button>
           </div>
-          {mode === "dual" && (
-            <div className={`name-slot user-b ${activeUser === "B" ? "active" : ""}`}>
+          <div className="name-inputs" aria-label={mode === "dual" ? "Player names" : "Your name"}>
+            <div className={`name-slot user-a ${mode === "single" || activeUser === "A" ? "active" : ""}`}>
               <input
-                className="name-input user-b"
-                value={userNames.B}
-                onChange={(e) => setUserNames((n) => ({ ...n, B: e.target.value }))}
-                placeholder="User B"
+                className="name-input user-a"
+                value={userNames.A}
+                onChange={(e) => setUserNames((n) => ({ ...n, A: e.target.value }))}
+                placeholder={mode === "dual" ? "User A" : "Your name"}
                 maxLength={24}
-                aria-label="User B name"
+                aria-label={mode === "dual" ? "User A name" : "Your name"}
               />
-              {recordingFor === "B" && <span className="rec-dot" />}
+              {recordingFor === "A" && <span className="rec-dot" />}
             </div>
+            {mode === "dual" && (
+              <div className={`name-slot user-b ${activeUser === "B" ? "active" : ""}`}>
+                <input
+                  className="name-input user-b"
+                  value={userNames.B}
+                  onChange={(e) => setUserNames((n) => ({ ...n, B: e.target.value }))}
+                  placeholder="User B"
+                  maxLength={24}
+                  aria-label="User B name"
+                />
+                {recordingFor === "B" && <span className="rec-dot" />}
+              </div>
+            )}
+          </div>
+          <div className="dictation-hint">
+            hold <kbd>⇧</kbd> to dictate a note
+            {mode === "dual" && <> for the active player</>}
+          </div>
+        </div>
+        <div className="swipe-progress">
+          <span>{boardName} · {progressLabel}</span>
+          {isReviewing && (
+            <span className="review-pill">
+              Re-picking · <button className="link-btn" onClick={cancelReview}>cancel (Esc)</button>
+            </span>
+          )}
+          {pins && current && !isReviewing && (
+            <button
+              className="btn ghost finish-btn"
+              onClick={finishEarly}
+              title="Finish early and review (Esc)"
+            >
+              Finish ({entries.length})
+            </button>
           )}
         </div>
-        <div className="dictation-hint">
-          hold <kbd>⇧</kbd> to dictate a note
-          {mode === "dual" && <> for the active player</>}
-        </div>
-        {isReviewing && (
-          <span className="review-pill">
-            Re-picking · <button className="link-btn" onClick={cancelReview}>cancel (Esc)</button>
-          </span>
-        )}
-        {pins && current && !isReviewing && (
-          <button
-            className="btn ghost finish-btn"
-            onClick={finishEarly}
-            title="Finish early and review (Esc)"
-          >
-            Finish ({entries.length})
-          </button>
-        )}
       </div>
       {error && <div className="error">{error}</div>}
       {!pins && !error && <div className="notice"><span className="spinner" /> Loading pins…</div>}
@@ -541,8 +545,8 @@ export default function SwipePage() {
                 <button
                   className="circle-btn superdislike"
                   onClick={() => commit("superdislike")}
-                  aria-label="Super dislike"
-                  title="Super dislike (↓)"
+                  aria-label="Strong dislike"
+                  title="Strong dislike (↓)"
                 >
                   ⊘
                 </button>
@@ -574,19 +578,19 @@ export default function SwipePage() {
                 <button
                   className="circle-btn superlike"
                   onClick={() => commit("superlike")}
-                  aria-label="Super like"
-                  title="Super like (↑)"
+                  aria-label="Strong like"
+                  title="Strong like (↑)"
                 >
                   ★
                 </button>
               </div>
               <div className="shortcut-hint">
                 <span className="desktop-only">
-                  <kbd>↓</kbd> super dislike <span>·</span>{" "}
+                  <kbd>↓</kbd> strong dislike <span>·</span>{" "}
                   <kbd>←</kbd> dislike <span>·</span>{" "}
                   <kbd>space</kbd> skip <span>·</span>{" "}
                   <kbd>→</kbd> like <span>·</span>{" "}
-                  <kbd>↑</kbd> super like <span>·</span>{" "}
+                  <kbd>↑</kbd> strong like <span>·</span>{" "}
                   <kbd>⇧</kbd> dictate <span>·</span>{" "}
                   <kbd>Esc</kbd> {isReviewing ? "cancel" : "finish"}
                 </span>
