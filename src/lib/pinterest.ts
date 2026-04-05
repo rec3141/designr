@@ -199,12 +199,10 @@ export async function createPinOnBoard(
     imageUrl: string;
   }
 ): Promise<{ id: string }> {
-  // Prefer repin-by-id — that's what Pinterest expects when the source is
-  // another pin on Pinterest. Falls back to image_url for pins whose id is
-  // missing for any reason.
-  const mediaSource = pin.sourcePinId
-    ? { source_type: "pin_id", pin_id: pin.sourcePinId }
-    : { source_type: "image_url", url: pin.imageUrl };
+  // Pinterest's /v5/pins API only accepts image_url / image_base64 / video_id
+  // / multiple_image_* / pin_url as media sources — there is no "pin_id"
+  // source type, so we always re-upload via the original image URL.
+  const mediaSource = { source_type: "image_url", url: pin.imageUrl };
   return pinterestPost(token, "/pins", {
     board_id: boardId,
     title: pin.title?.slice(0, 100) || undefined,
