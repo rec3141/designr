@@ -537,6 +537,8 @@ export default function SwipePage() {
                   onDecide={commit}
                   isTop
                   zIndex={2}
+                  recording={!!recordingFor}
+                  onToggleVoice={toggleVoice}
                 />
               </div>
               <div className="swipe-actions">
@@ -557,12 +559,13 @@ export default function SwipePage() {
                   ✕
                 </button>
                 <button
-                  className={`circle-btn mic${recordingFor ? " recording" : ""}`}
-                  onClick={toggleVoice}
-                  aria-label={recordingFor ? "Stop recording" : "Dictate a note"}
-                  title={recordingFor ? "Stop recording" : "Dictate a note"}
+                  className="circle-btn skip"
+                  onClick={skip}
+                  aria-label="Skip"
+                  title="Skip (space)"
+                  disabled={isReviewing}
                 >
-                  🎙
+                  »
                 </button>
                 <button
                   className="circle-btn like"
@@ -582,15 +585,6 @@ export default function SwipePage() {
                 </button>
               </div>
               <div className="shortcut-hint">
-                {!isReviewing && (
-                  <button
-                    className="link-btn skip-link"
-                    onClick={skip}
-                    aria-label="Skip"
-                  >
-                    skip
-                  </button>
-                )}
                 <span className="desktop-only">
                   <kbd>↓</kbd> super dislike <span>·</span>{" "}
                   <kbd>←</kbd> dislike <span>·</span>{" "}

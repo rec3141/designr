@@ -394,7 +394,29 @@ a { color: inherit; text-decoration: none; }
   font-family: inherit;
   outline: none;
 }
-.swipe-card textarea:focus { border-color: #4a4a55; }
+.swipe-card textarea:focus { border-color: #4a4a45; }
+.record-bar {
+  width: 100%;
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.record-bar:hover { border-color: #4a4a55; color: var(--text); }
+.record-bar.recording {
+  border-color: #ef4444;
+  color: #ef4444;
+  animation: pulse-bar 1s ease-in-out infinite;
+}
+@keyframes pulse-bar {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
 
 .stamp {
   position: absolute;
@@ -446,20 +468,6 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted);
   font-size: 22px;
 }
-.circle-btn.mic {
-  border-color: var(--muted);
-  color: var(--muted);
-  font-size: 20px;
-}
-.circle-btn.mic.recording {
-  border-color: #ef4444;
-  color: #ef4444;
-  animation: pulse-mic 1s ease-in-out infinite;
-}
-@keyframes pulse-mic {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-}
 
 .shortcut-hint {
   color: var(--muted);
@@ -470,12 +478,6 @@ a { color: inherit; text-decoration: none; }
   flex-wrap: wrap;
   justify-content: center;
   margin-top: 4px;
-}
-.skip-link {
-  font-size: 13px;
-  color: var(--muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 /* Hide keyboard-centric hints on touch devices (no hover = no physical keyboard). */
 @media (hover: none) {

@@ -9,9 +9,11 @@ type Props = {
   onDecide: (choice: SwipeChoice) => void;
   isTop: boolean;
   zIndex: number;
+  recording?: boolean;
+  onToggleVoice?: () => void;
 };
 
-export default function SwipeCard({ pin, note, onNoteChange, onDecide, isTop, zIndex }: Props) {
+export default function SwipeCard({ pin, note, onNoteChange, onDecide, isTop, zIndex, recording, onToggleVoice }: Props) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
   const likeOpacity = useTransform(x, [40, 150], [0, 1]);
@@ -58,11 +60,23 @@ export default function SwipeCard({ pin, note, onNoteChange, onDecide, isTop, zI
       <div className="card-body">
         {pin.title && <div className="card-title">{pin.title}</div>}
         {isTop ? (
-          <textarea
-            placeholder="Optional note — what do you feel about this?"
-            value={note}
-            onChange={(e) => onNoteChange(e.target.value)}
-          />
+          <>
+            <textarea
+              placeholder="Optional note — what do you feel about this?"
+              value={note}
+              onChange={(e) => onNoteChange(e.target.value)}
+            />
+            {onToggleVoice && (
+              <button
+                className={`record-bar${recording ? " recording" : ""}`}
+                onClick={onToggleVoice}
+                aria-label={recording ? "Stop recording" : "Dictate a note"}
+                type="button"
+              >
+                {recording ? "🎙 Recording… tap to stop" : "🎙 Dictate a note"}
+              </button>
+            )}
+          </>
         ) : (
           <div style={{ flex: 1 }} />
         )}
