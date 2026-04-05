@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SwipeChoice, SwipeSession, SwipeEntry } from "@/lib/types";
 import { choiceLabel, isPositive } from "@/lib/types";
+import Markdown from "@/components/Markdown";
 
 type SortMode = "original" | "score";
 import { resetTheme } from "@/lib/theme";
@@ -12,21 +13,6 @@ type ChatTurn = {
   text: string;
   imageDataUrl?: string;
 };
-
-// Split a string on #RRGGBB hex codes and render tiny color chips inline.
-function renderWithHexChips(text: string) {
-  const parts = text.split(/(#[0-9a-fA-F]{6}\b)/g);
-  return parts.map((p, i) =>
-    /^#[0-9a-fA-F]{6}$/.test(p) ? (
-      <span key={i} className="hex-inline">
-        <span className="hex-chip" style={{ background: p }} />
-        <code>{p}</code>
-      </span>
-    ) : (
-      <span key={i}>{p}</span>
-    )
-  );
-}
 
 const CHOICES: SwipeChoice[] = ["superlike", "like", "dislike", "superdislike"];
 const CHOICE_GLYPH: Record<SwipeChoice, string> = {
@@ -490,7 +476,7 @@ export default function ReviewPage() {
       {analysis && (
         <div style={{ marginBottom: 24 }}>
           <h3 style={{ margin: "0 0 12px" }}>Your style, according to the AI</h3>
-          <div className="analysis">{renderWithHexChips(analysis)}</div>
+          <div className="analysis"><Markdown>{analysis}</Markdown></div>
           {analysisModel && (
             <div
               style={{
@@ -516,7 +502,7 @@ export default function ReviewPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img className="chat-attach" src={m.imageDataUrl} alt="" />
               )}
-              <div className="chat-bubble">{renderWithHexChips(m.text)}</div>
+              <div className="chat-bubble"><Markdown>{m.text}</Markdown></div>
             </div>
           ))}
           {chatBusy && (
