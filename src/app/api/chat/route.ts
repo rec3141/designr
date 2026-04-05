@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
   ];
 
   try {
-    const reply = await chatCompletion(messages, body.model);
-    return NextResponse.json({ reply });
+    const { content, modelUsed } = await chatCompletion(messages, body.model);
+    return NextResponse.json({ reply: content, modelUsed });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "failed";
     console.error("[api/chat] failed:", msg);

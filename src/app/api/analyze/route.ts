@@ -13,8 +13,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_entries" }, { status: 400 });
   }
   try {
-    const analysis = await analyzeStyle(body.entries, body.model);
-    return NextResponse.json({ analysis });
+    const { analysis, modelUsed } = await analyzeStyle(body.entries, body.model);
+    return NextResponse.json({ analysis, modelUsed });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "failed";
     return NextResponse.json({ error: msg }, { status: 500 });

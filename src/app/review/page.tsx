@@ -87,6 +87,7 @@ export default function ReviewPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisModel, setAnalysisModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<{
     succeeded: number;
@@ -153,6 +154,7 @@ export default function ReviewPage() {
     setAnalyzing(true);
     setError(null);
     setAnalysis(null);
+    setAnalysisModel(null);
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -162,6 +164,7 @@ export default function ReviewPage() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Analysis failed");
       setAnalysis(j.analysis);
+      if (j.modelUsed) setAnalysisModel(j.modelUsed);
       // Seed the chat with the analysis as the first assistant turn so the
       // model has its own context when the user asks follow-ups.
       const seeded: ChatTurn[] = [{ role: "assistant", text: j.analysis }];
@@ -488,6 +491,20 @@ export default function ReviewPage() {
         <div style={{ marginBottom: 24 }}>
           <h3 style={{ margin: "0 0 12px" }}>Your style, according to the AI</h3>
           <div className="analysis">{renderWithHexChips(analysis)}</div>
+          {analysisModel && (
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: "var(--muted, #a1a1aa)",
+              }}
+            >
+              answered by: <code>{analysisModel}</code>
+              {modelId && analysisModel !== modelId && (
+                <> — fell back from <code>{modelId}</code></>
+              )}
+            </div>
+          )}
         </div>
       )}
 

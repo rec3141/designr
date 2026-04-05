@@ -1,10 +1,39 @@
 import type { SwipeEntry } from "./types";
 import { choiceLabel } from "./types";
 
-// Claude's hard limit is 100 images per message, and cost scales linearly, so
-// we cap there. If the user has more swipes than that we do smart subsampling
-// (see `subsampleEntries` below) rather than just slicing off the tail.
+// Claude's hard limit is 100 images per message and cost scales linearly,
+// so we cap there for Claude and a small allowlist of other large-context
+// vision models. Most other models — and effectively every `:free` model —
+// have much lower per-request image caps (Nvidia ~10, Gemma 32, various
+// unknown). We use a conservative floor of 8 for everything unknown.
 export const MAX_IMAGES = 100;
+export const FREE_MODEL_IMAGE_CAP = 8;
+
+// Lookup the per-request image cap for a given model id. Unknown models
+// fall through to the conservative floor.
+export function getImageCap(modelId: string): number {
+  const id = modelId.toLowerCase();
+  // Claude family — all known to accept 100 images per request.
+  if (id.startsWith("anthropic/")) return 100;
+  // OpenAI vision-capable chat models.
+  if (id.startsWith("openai/gpt-4o") || id.startsWith("openai/gpt-4-vision"))
+    return 100;
+  // Gemini Pro tiers (not Flash, not Gemma variants).
+  if (/^google\/gemini-(1\.5|2\.0|2\.5)-pro/.test(id)) return 100;
+  return FREE_MODEL_IMAGE_CAP;
+}
+
+// Pinterest's CDN exposes path-based size variants. `/originals/` pins can
+// easily be >2000px on either axis, which trips Claude's many-image mode
+// (max 2000px per dimension in batched requests). Rewriting to `/736x/`
+// yields a ≤736px variant at zero cost — no resize proxy needed. Safe for
+// every free model's cap too. Only touches i.pinimg.com URLs.
+export function normalizeImageUrl(url: string): string {
+  return url.replace(
+    /^(https?:\/\/i\.pinimg\.com\/)[^/]+\//,
+    "$1736x/"
+  );
+}
 
 // Pick `n` items from `arr` with an even stride so we get a representative
 // spread rather than the first n.
@@ -82,40 +111,83 @@ export type ChatMessage = {
       >;
 };
 
-function resolveModel(modelOverride?: string): string {
+export const DEFAULT_MODEL = "anthropic/claude-sonnet-4.6";
+
+export function resolveModel(modelOverride?: string): string {
   return (
     modelOverride?.trim() ||
     process.env.OPENROUTER_MODEL ||
-    "anthropic/claude-sonnet-4.6"
+    DEFAULT_MODEL
   );
 }
+
+// Apply Pinterest URL normalization to every image_url in a message list.
+// Leaves text parts and non-Pinterest images (e.g. chat data: URLs) alone.
+function normalizeMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((m) => {
+    if (typeof m.content === "string") return m;
+    return {
+      ...m,
+      content: m.content.map((part) =>
+        part.type === "image_url"
+          ? {
+              ...part,
+              image_url: { url: normalizeImageUrl(part.image_url.url) },
+            }
+          : part
+      ),
+    };
+  });
+}
+
+export type ChatCompletionResult = {
+  content: string;
+  modelUsed: string;
+};
 
 export async function chatCompletion(
   messages: ChatMessage[],
   modelOverride?: string
-): Promise<string> {
+): Promise<ChatCompletionResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY");
-  const model = resolveModel(modelOverride);
+  const primary = resolveModel(modelOverride);
+  const fallback = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+
+  // Only build a fallback chain when the user picked a non-default model.
+  // OpenRouter's `models` array is tried in order on upstream failure.
+  const body: Record<string, unknown> = {
+    messages: normalizeMessages(messages),
+    temperature: 0.7,
+  };
+  if (primary !== fallback) {
+    body.models = [primary, fallback];
+  } else {
+    body.model = primary;
+  }
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
+      "HTTP-Referer": "https://app.designr.quest",
       "X-Title": "designr",
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7 }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     throw new Error(`OpenRouter error: ${res.status} ${await res.text()}`);
   }
   const json = (await res.json()) as {
+    model?: string;
     choices?: Array<{ message?: { content?: string } }>;
   };
-  return json.choices?.[0]?.message?.content?.trim() ?? "(no response)";
+  return {
+    content: json.choices?.[0]?.message?.content?.trim() ?? "(no response)",
+    modelUsed: json.model ?? primary,
+  };
 }
 
 export const DUAL_ANALYSIS_SYSTEM_PROMPT =
@@ -138,16 +210,26 @@ export const ANALYSIS_SYSTEM_PROMPT =
   "4. A 'Palettes you'd love:' header line, followed by exactly 3 palette lines. Each palette is formatted as: '<evocative 2–3 word name>: #RRGGBB #RRGGBB #RRGGBB #RRGGBB #RRGGBB' (exactly five hex codes per palette, uppercase or lowercase is fine). The palettes should each capture a different facet of your sensibility. Use hex codes only — no rgb(), no names.\n\n" +
   "Do not restate the instructions. Do not add any other sections.";
 
+export type AnalyzeResult = {
+  analysis: string;
+  modelUsed: string;
+};
+
 export async function analyzeStyle(
   entries: SwipeEntry[],
   modelOverride?: string
-): Promise<string> {
+): Promise<AnalyzeResult> {
   // Detect dual-user sessions by presence of userId tags.
   const isDual = entries.some((e) => e.userId);
 
-  // Smart-subsample down to Claude's per-message image limit, keeping all
-  // super-choices and taking a representative stride through the rest.
-  const capped = subsampleEntries(entries, MAX_IMAGES);
+  // Per-model image cap — Claude handles 100, most free models 8 or so.
+  // If a fallback chain kicks in (chatCompletion appends the default paid
+  // model), the *primary* model's cap is the one we size to — that keeps
+  // the request valid for whichever model actually answers, since the
+  // default paid model accepts >= the free cap.
+  const primary = resolveModel(modelOverride);
+  const cap = getImageCap(primary);
+  const capped = subsampleEntries(entries, cap);
 
   const leadText = isDual
     ? "Here are the images with verdicts and notes from both users. The same image may appear twice with different reactions from User A and User B. Analyze their shared and divergent style."
@@ -165,7 +247,7 @@ export async function analyzeStyle(
     userContent.push({ type: "image_url", image_url: { url: e.pin.imageUrl } });
   }
 
-  return chatCompletion(
+  const { content, modelUsed } = await chatCompletion(
     [
       {
         role: "system",
@@ -175,6 +257,7 @@ export async function analyzeStyle(
     ],
     modelOverride
   );
+  return { analysis: content, modelUsed };
 }
 
 export const FOLLOWUP_SYSTEM_PROMPT =
