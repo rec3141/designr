@@ -244,6 +244,21 @@ export default function SwipePage() {
     return p;
   }
 
+  // Tap-to-toggle voice for mobile (no Shift key). Tap once to start
+  // recording for the active user, tap again to stop and transcribe.
+  function toggleVoice() {
+    if (recorderRef.current) {
+      stopVoiceAndTranscribe();
+    } else {
+      let forUser: UserId = currentUser;
+      if (isReviewing && mode === "dual") {
+        const owner = entries[reviewingIdx!]?.userId;
+        if (owner) forUser = owner;
+      }
+      startVoice(forUser);
+    }
+  }
+
   function goBackTo(entryIdx: number) {
     if (entryIdx < 0 || entryIdx >= entries.length) return;
     setCurrentNote(entries[entryIdx].note ?? "");
@@ -542,13 +557,12 @@ export default function SwipePage() {
                   ✕
                 </button>
                 <button
-                  className="circle-btn skip"
-                  onClick={skip}
-                  aria-label="Skip"
-                  title="Skip (space)"
-                  disabled={isReviewing}
+                  className={`circle-btn mic${recordingFor ? " recording" : ""}`}
+                  onClick={toggleVoice}
+                  aria-label={recordingFor ? "Stop recording" : "Dictate a note"}
+                  title={recordingFor ? "Stop recording" : "Dictate a note"}
                 >
-                  »
+                  🎙
                 </button>
                 <button
                   className="circle-btn like"
@@ -568,12 +582,24 @@ export default function SwipePage() {
                 </button>
               </div>
               <div className="shortcut-hint">
-                <kbd>↓</kbd> super dislike <span>·</span>{" "}
-                <kbd>←</kbd> dislike <span>·</span>{" "}
-                <kbd>space</kbd> skip <span>·</span>{" "}
-                <kbd>→</kbd> like <span>·</span>{" "}
-                <kbd>↑</kbd> super like <span>·</span>{" "}
-                <kbd>Esc</kbd> {isReviewing ? "cancel" : "finish"}
+                {!isReviewing && (
+                  <button
+                    className="link-btn skip-link"
+                    onClick={skip}
+                    aria-label="Skip"
+                  >
+                    skip
+                  </button>
+                )}
+                <span className="desktop-only">
+                  <kbd>↓</kbd> super dislike <span>·</span>{" "}
+                  <kbd>←</kbd> dislike <span>·</span>{" "}
+                  <kbd>space</kbd> skip <span>·</span>{" "}
+                  <kbd>→</kbd> like <span>·</span>{" "}
+                  <kbd>↑</kbd> super like <span>·</span>{" "}
+                  <kbd>⇧</kbd> dictate <span>·</span>{" "}
+                  <kbd>Esc</kbd> {isReviewing ? "cancel" : "finish"}
+                </span>
               </div>
             </div>
 
