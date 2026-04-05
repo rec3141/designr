@@ -1,5 +1,9 @@
-import type { SwipeEntry } from "./types";
+import type { Pin, SwipeEntry, SwipeChoice, UserId } from "./types";
 import { choiceLabel } from "./types";
+
+function isSuper(c: SwipeChoice): boolean {
+  return c === "superlike" || c === "superdislike";
+}
 
 // Claude's hard limit is 100 images per message and cost scales linearly,
 // so we cap there for Claude and a small allowlist of other large-context
@@ -101,6 +105,54 @@ export function subsampleEntries(entries: SwipeEntry[], cap = MAX_IMAGES): Swipe
   return picked.map((x) => x.e);
 }
 
+// 2P sessions produce one SwipeEntry per (user, pin) pair — which means the
+// same pin gets sent to the model twice if we naively iterate entries. This
+// groups by pin id so we can send each image once with both users' verdicts
+// in a stacked label.
+export type PinGroup = {
+  pin: Pin;
+  verdicts: Array<{ userId?: UserId; choice: SwipeChoice; note?: string }>;
+  firstIndex: number;
+  hasSuper: boolean;
+};
+
+export function groupEntriesByPin(entries: SwipeEntry[]): PinGroup[] {
+  const map = new Map<string, PinGroup>();
+  entries.forEach((e, i) => {
+    const g = map.get(e.pin.id);
+    const verdict = { userId: e.userId, choice: e.choice, note: e.note };
+    if (g) {
+      g.verdicts.push(verdict);
+      if (isSuper(e.choice)) g.hasSuper = true;
+    } else {
+      map.set(e.pin.id, {
+        pin: e.pin,
+        verdicts: [verdict],
+        firstIndex: i,
+        hasSuper: isSuper(e.choice),
+      });
+    }
+  });
+  return [...map.values()].sort((a, b) => a.firstIndex - b.firstIndex);
+}
+
+// Group-level subsampling: keep every pin that any user flagged as super,
+// then fill remaining slots with a stride sample of the rest. Simpler than
+// the per-entry version because 2P disagreements already live inside each
+// group, so we don't need to split likes/dislikes proportionally.
+export function subsampleGroups(groups: PinGroup[], cap: number): PinGroup[] {
+  if (groups.length <= cap) return groups;
+  const supers = groups.filter((g) => g.hasSuper);
+  const rest = groups.filter((g) => !g.hasSuper);
+  let picked: PinGroup[];
+  if (supers.length >= cap) {
+    picked = strideSample(supers, cap);
+  } else {
+    picked = [...supers, ...strideSample(rest, cap - supers.length)];
+  }
+  return picked.sort((a, b) => a.firstIndex - b.firstIndex);
+}
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
   content:
@@ -192,7 +244,7 @@ export async function chatCompletion(
 
 export const DUAL_ANALYSIS_SYSTEM_PROMPT =
   "You are a thoughtful visual style analyst. Two people — User A and User B — just swiped through the same mood board together, and you're writing a joint style portrait that identifies both their shared ground and where they diverge. Write in second person plural when discussing overlap ('you both gravitate toward…'), and name the users explicitly when discussing their individual territory ('A is drawn to…', 'B pushes away from…').\n\n" +
-  "Each image you are shown is tagged with a verdict (SUPERLIKE, LIKE, DISLIKE, SUPERDISLIKE) AND which user it came from. The same image may appear twice with different verdicts from the two users — those disagreements are gold for the analysis. Weight SUPERLIKE and SUPERDISLIKE much more heavily. However, DO NOT use the words 'like', 'dislike', 'superlike', or 'superdislike' in your response — describe reactions in natural language.\n\n" +
+  "Each image is shown exactly once, preceded by one line per user describing their reaction in the format [A][VERDICT] — note: ... and [B][VERDICT] — note: .... VERDICT is one of SUPERLIKE, LIKE, DISLIKE, SUPERDISLIKE. When the two users disagree on the same image, that disagreement is gold for the analysis. Weight SUPERLIKE and SUPERDISLIKE much more heavily. However, DO NOT use the words 'like', 'dislike', 'superlike', or 'superdislike' in your response — describe reactions in natural language.\n\n" +
   "Produce exactly four sections, separated by blank lines, in this order:\n\n" +
   "1. A 'Shared ground:' header followed by one paragraph describing the aesthetic territory both users share — recurring themes, colors, moods, compositional tendencies they both respond to. Be specific.\n\n" +
   "2. An 'A's territory:' header followed by a short paragraph about what User A is drawn to that B isn't (or actively rejects). Then a blank line and a 'B's territory:' header with the mirror analysis for User B.\n\n" +
@@ -229,22 +281,47 @@ export async function analyzeStyle(
   // default paid model accepts >= the free cap.
   const primary = resolveModel(modelOverride);
   const cap = getImageCap(primary);
-  const capped = subsampleEntries(entries, cap);
 
   const leadText = isDual
-    ? "Here are the images with verdicts and notes from both users. The same image may appear twice with different reactions from User A and User B. Analyze their shared and divergent style."
+    ? "Here are the images with verdicts and notes from both users. Each image is shown once, with each user's reaction stacked above it on its own line. Analyze their shared and divergent style."
     : "Here are the images with the user's verdicts and notes. Analyze their style.";
 
   const userContent: Exclude<ChatMessage["content"], string> = [
     { type: "text", text: leadText },
   ];
-  for (const e of capped) {
-    const who = e.userId ? `[${e.userId}]` : "";
-    const label = `${who}[${choiceLabel(e.choice)}]${e.pin.title ? ` title: ${e.pin.title}` : ""}${
-      e.note ? ` — note: ${e.note}` : ""
-    }`;
-    userContent.push({ type: "text", text: label });
-    userContent.push({ type: "image_url", image_url: { url: e.pin.imageUrl } });
+
+  if (isDual) {
+    // Group by pin so each image is sent once with both users' verdicts
+    // stacked above it — halves the image count and token cost vs. the
+    // old one-entry-per-image approach.
+    const groups = groupEntriesByPin(entries);
+    const capped = subsampleGroups(groups, cap);
+    for (const g of capped) {
+      // Sort verdicts by userId so A always comes before B for stable output.
+      const ordered = [...g.verdicts].sort((a, b) =>
+        (a.userId ?? "").localeCompare(b.userId ?? "")
+      );
+      const header = g.pin.title ? `title: ${g.pin.title}` : "";
+      if (header) userContent.push({ type: "text", text: header });
+      for (const v of ordered) {
+        const who = v.userId ? `[${v.userId}]` : "";
+        const line = `${who}[${choiceLabel(v.choice)}]${
+          v.note ? ` — note: ${v.note}` : ""
+        }`;
+        userContent.push({ type: "text", text: line });
+      }
+      userContent.push({ type: "image_url", image_url: { url: g.pin.imageUrl } });
+    }
+  } else {
+    // Solo mode — one entry per pin already, no grouping needed.
+    const capped = subsampleEntries(entries, cap);
+    for (const e of capped) {
+      const label = `[${choiceLabel(e.choice)}]${e.pin.title ? ` title: ${e.pin.title}` : ""}${
+        e.note ? ` — note: ${e.note}` : ""
+      }`;
+      userContent.push({ type: "text", text: label });
+      userContent.push({ type: "image_url", image_url: { url: e.pin.imageUrl } });
+    }
   }
 
   const { content, modelUsed } = await chatCompletion(
