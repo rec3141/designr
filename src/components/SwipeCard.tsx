@@ -10,10 +10,11 @@ type Props = {
   isTop: boolean;
   zIndex: number;
   recording?: boolean;
-  onToggleVoice?: () => void;
+  onVoiceStart?: () => void;
+  onVoiceStop?: () => void;
 };
 
-export default function SwipeCard({ pin, note, onNoteChange, onDecide, isTop, zIndex, recording, onToggleVoice }: Props) {
+export default function SwipeCard({ pin, note, onNoteChange, onDecide, isTop, zIndex, recording, onVoiceStart, onVoiceStop }: Props) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
   const likeOpacity = useTransform(x, [40, 150], [0, 1]);
@@ -66,14 +67,20 @@ export default function SwipeCard({ pin, note, onNoteChange, onDecide, isTop, zI
               value={note}
               onChange={(e) => onNoteChange(e.target.value)}
             />
-            {onToggleVoice && (
+            {onVoiceStart && onVoiceStop && (
               <button
                 className={`record-bar${recording ? " recording" : ""}`}
-                onClick={onToggleVoice}
-                aria-label={recording ? "Stop recording" : "Dictate a note"}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onVoiceStart();
+                }}
+                onPointerUp={() => { if (recording) onVoiceStop(); }}
+                onPointerLeave={() => { if (recording) onVoiceStop(); }}
+                onContextMenu={(e) => e.preventDefault()}
+                aria-label="Hold to dictate a note"
                 type="button"
               >
-                {recording ? "🎙 Recording… tap to stop" : "🎙 Dictate a note"}
+                {recording ? "🎙 Recording…" : "🎙 Hold to dictate"}
               </button>
             )}
           </>

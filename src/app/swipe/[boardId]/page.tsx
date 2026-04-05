@@ -244,19 +244,14 @@ export default function SwipePage() {
     return p;
   }
 
-  // Tap-to-toggle voice for mobile (no Shift key). Tap once to start
-  // recording for the active user, tap again to stop and transcribe.
-  function toggleVoice() {
-    if (recorderRef.current) {
-      stopVoiceAndTranscribe();
-    } else {
-      let forUser: UserId = currentUser;
-      if (isReviewing && mode === "dual") {
-        const owner = entries[reviewingIdx!]?.userId;
-        if (owner) forUser = owner;
-      }
-      startVoice(forUser);
+  // Start voice for the currently active user (single or dual mode).
+  function startVoiceForActive() {
+    let forUser: UserId = currentUser;
+    if (isReviewing && mode === "dual") {
+      const owner = entries[reviewingIdx!]?.userId;
+      if (owner) forUser = owner;
     }
+    startVoice(forUser);
   }
 
   function goBackTo(entryIdx: number) {
@@ -538,7 +533,8 @@ export default function SwipePage() {
                   isTop
                   zIndex={2}
                   recording={!!recordingFor}
-                  onToggleVoice={toggleVoice}
+                  onVoiceStart={startVoiceForActive}
+                  onVoiceStop={stopVoiceAndTranscribe}
                 />
               </div>
               <div className="swipe-actions">
