@@ -166,16 +166,11 @@ export default function SwipePage() {
   const nextCard = isReviewing ? liveCurrent : liveNext;
   const done = !isReviewing && pins !== null && index >= pins.length;
 
-  function ingestThemeFor(pin: Pin, choice: SwipeChoice) {
-    if (!isPositive(choice)) return;
-    const weight = choiceWeight(choice);
-    sampleDominantHSL(pin.imageUrl).then((c) => {
-      if (!c) return;
-      const n = ingestColor(loadTheme(), c, weight);
-      saveTheme(n);
-      applyTheme(n);
-      window.dispatchEvent(new Event("designr:theme"));
-    });
+  // Theme color sampling disabled for now — the /api/img proxy call per
+  // positive swipe adds unnecessary load. Re-enable when we build a
+  // better pipeline (e.g. batch sampling, client-side caching).
+  function ingestThemeFor(_pin: Pin, _choice: SwipeChoice) {
+    // no-op
   }
 
   async function commit(choice: SwipeChoice) {
