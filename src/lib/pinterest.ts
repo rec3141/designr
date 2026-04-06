@@ -261,7 +261,12 @@ export async function listBoardSections(
   let bookmark: string | undefined;
   do {
     const data: {
-      items: Array<{ id: string; title?: string; pin_count?: number }>;
+      items: Array<{
+        id: string;
+        title?: string;
+        name?: string;
+        pin_count?: number;
+      }>;
       bookmark?: string;
     } = await pinterestGet(token, `/boards/${boardId}/sections`, {
       page_size: "100",
@@ -270,7 +275,8 @@ export async function listBoardSections(
     for (const s of data.items) {
       out.push({
         id: s.id,
-        title: s.title || "Untitled",
+        // Pinterest's section payload has drifted between `title` and `name`.
+        title: s.title || s.name || "Untitled",
         pinCount: s.pin_count,
       });
     }
@@ -307,20 +313,27 @@ export async function scrapeBoardSections(
   if (!res.ok) return [];
   const html = await res.text();
 
-  // Extract each section from the "boardsections" map in __PWS_DATA__.
-  // Pattern: "ID":{"node_id":"...","pin_count":N,"type":"board_section","title":"..."}
-  const sectionRegex =
-    /"(\d+)":\{"node_id":"[^"]*","pin_count":(\d+),"type":"board_section","title":"([^"]*)"/g;
   const out: BoardSection[] = [];
   const seen = new Set<string>();
   let m: RegExpExecArray | null;
-  while ((m = sectionRegex.exec(html)) !== null) {
-    if (seen.has(m[1])) continue; // dedupe (appears twice in the page)
-    seen.add(m[1]);
+
+  // Pinterest moves fields around in the embedded board_section objects, so
+  // match the whole flat object first, then read `title` or `name` inside it.
+  const objectRegex = /"(\d+)":\{[^{}]*"type":"board_section"[^{}]*\}/g;
+  while ((m = objectRegex.exec(html)) !== null) {
+    const id = m[1];
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const object = m[0];
+    const titleMatch = object.match(/"(?:title|name)":"([^"]*)"/);
+    const pinCountMatch = object.match(/"pin_count":(\d+)/);
+    const rawTitle = titleMatch?.[1];
+
     out.push({
-      id: m[1],
-      title: JSON.parse(`"${m[3]}"`) || "Untitled", // unescape \u0026 etc.
-      pinCount: parseInt(m[2], 10),
+      id,
+      title: rawTitle ? JSON.parse(`"${rawTitle}"`) : "Untitled",
+      pinCount: pinCountMatch ? parseInt(pinCountMatch[1], 10) : undefined,
     });
   }
   return out;
