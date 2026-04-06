@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { requireAuth } from "@/lib/session";
 import { listBoardPins } from "@/lib/pinterest";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  const token = session.pinterest?.accessToken;
+  const token = await requireAuth();
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   try {
     const pins = await listBoardPins(token, params.id);

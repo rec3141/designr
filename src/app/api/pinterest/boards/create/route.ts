@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { requireAuth } from "@/lib/session";
 import { createBoard, createPinOnBoard } from "@/lib/pinterest";
 import type { Pin } from "@/lib/types";
 
@@ -10,8 +10,7 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  const token = session.pinterest?.accessToken;
+  const token = await requireAuth();
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   let body: Body;

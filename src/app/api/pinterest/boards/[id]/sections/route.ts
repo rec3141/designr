@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSession, requireAuth } from "@/lib/session";
 import {
   listBoardSections,
   scrapeBoardSections,
@@ -10,10 +10,10 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSession();
-  const token = session.pinterest?.accessToken;
+  const token = await requireAuth();
   if (!token)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const session = await getSession(); // for username fallback
 
   try {
     let sections = await listBoardSections(token, params.id);

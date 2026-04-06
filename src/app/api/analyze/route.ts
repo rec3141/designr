@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeStyle } from "@/lib/openrouter";
+import { requireAuth } from "@/lib/session";
 import type { SwipeEntry } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth()))
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   let body: {
     entries: SwipeEntry[];
     model?: string;

@@ -4,6 +4,7 @@ import {
   FOLLOWUP_SYSTEM_PROMPT,
   type ChatMessage,
 } from "@/lib/openrouter";
+import { requireAuth } from "@/lib/session";
 
 export const maxDuration = 60;
 
@@ -34,6 +35,8 @@ function toChatMessage(m: InboundMessage): ChatMessage {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth()))
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   let body: Body;
   try {
     body = await req.json();

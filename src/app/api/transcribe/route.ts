@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/session";
 
 // OpenRouter's input_audio content block follows the OpenAI-compat spec which
 // only accepts "wav" or "mp3" formats. The browser recorder (src/lib/voice.ts)
@@ -14,6 +15,8 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth()))
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "missing_openrouter_key" }, { status: 500 });
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
+        "HTTP-Referer": "https://app.designr.quest",
         "X-Title": "designr",
       },
       body: JSON.stringify({ model, messages, temperature: 0 }),

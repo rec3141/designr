@@ -125,17 +125,41 @@ export async function getCurrentUser(
 // %2F-encoded slash gets decoded by their API gateway before routing, causing
 // a 404). So we fetch the public board HTML page and extract the numeric
 // board ID from Pinterest's embedded __PWS_DATA__ JSON state.
+// Allowlist for Pinterest page fetches to prevent SSRF.
+function assertPinterestUrl(url: string): void {
+  const parsed = new URL(url);
+  const allowed = ["www.pinterest.com", "pinterest.com"];
+  if (
+    !allowed.includes(parsed.hostname) &&
+    !/^[a-z]{2}\.pinterest\.com$/.test(parsed.hostname)
+  ) {
+    throw new Error("URL is not a Pinterest domain");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("Only HTTPS Pinterest URLs are accepted");
+  }
+}
+
 export async function resolveBoardFromPage(
   pinterestPageUrl: string
 ): Promise<{ id: string; name: string; pinCount?: number }> {
+  assertPinterestUrl(pinterestPageUrl);
   const res = await fetch(pinterestPageUrl, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (compatible; designr/1.0; +https://designr.quest)",
       Accept: "text/html",
     },
-    redirect: "follow",
+    redirect: "manual",
   });
+  // Follow redirects only if they stay on Pinterest.
+  if (res.status >= 300 && res.status < 400) {
+    const loc = res.headers.get("location");
+    if (loc) {
+      assertPinterestUrl(new URL(loc, pinterestPageUrl).toString());
+      return resolveBoardFromPage(new URL(loc, pinterestPageUrl).toString());
+    }
+  }
   if (!res.ok)
     throw new Error(`Failed to fetch Pinterest page (${res.status})`);
   const html = await res.text();
@@ -263,6 +287,7 @@ export async function listBoardSections(
 export async function scrapeBoardSections(
   boardPageUrl: string
 ): Promise<BoardSection[]> {
+  assertPinterestUrl(boardPageUrl);
   const res = await fetch(boardPageUrl, {
     headers: {
       "User-Agent":

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/session";
 
 // OpenRouter's model catalog. We filter to free multimodal (vision-capable)
 // models and then probe each candidate for live capacity so the user only
@@ -142,7 +143,13 @@ async function fetchAliveModels(): Promise<AliveModel[]> {
   return probed.filter((m): m is AliveModel => m !== null);
 }
 
+// Force dynamic — this route probes live model capacity and must not be
+// prerendered at build time (Finding #5).
+export const dynamic = "force-dynamic";
+
 export async function GET() {
+  if (!(await requireAuth()))
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   try {
     const now = Date.now();
     if (cache && now - cache.at < CACHE_TTL_MS) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { requireAuth } from "@/lib/session";
 import { resolveBoardFromPage, getBoardById } from "@/lib/pinterest";
 
 // Resolve a Pinterest board URL or username/board-slug to a Board object.
@@ -9,8 +9,7 @@ import { resolveBoardFromPage, getBoardById } from "@/lib/pinterest";
 // Flow: scrape the public Pinterest page for the numeric board ID, then
 // fetch full board details via the v5 API with the authenticated user's token.
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  const token = session.pinterest?.accessToken;
+  const token = await requireAuth();
   if (!token)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
@@ -22,9 +21,21 @@ export async function GET(req: NextRequest) {
   if (rawUrl) {
     try {
       const u = new URL(rawUrl);
-      if (!u.hostname.includes("pinterest")) {
+      // Strict allowlist — only accept actual Pinterest domains.
+      // Prevents SSRF via e.g. evilpinterest.com or pinterest.evil.com.
+      const allowed = ["www.pinterest.com", "pinterest.com", "pin.it"];
+      if (
+        !allowed.includes(u.hostname) &&
+        !/^[a-z]{2}\.pinterest\.com$/.test(u.hostname) // country subdomains like uk.pinterest.com
+      ) {
         return NextResponse.json(
           { error: "Not a Pinterest URL" },
+          { status: 400 }
+        );
+      }
+      if (u.protocol !== "https:") {
+        return NextResponse.json(
+          { error: "Only HTTPS Pinterest URLs are accepted" },
           { status: 400 }
         );
       }
