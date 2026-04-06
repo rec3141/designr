@@ -358,8 +358,8 @@ a { color: inherit; text-decoration: none; }
 }
 .swipe-deck {
   position: relative;
-  width: min(92vw, 420px);
-  height: min(78vh, 560px);
+  width: min(92vw, 520px);
+  height: min(80vh, 680px);
 }
 .swipe-card {
   position: absolute;
