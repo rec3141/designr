@@ -375,7 +375,8 @@ a { color: inherit; text-decoration: none; }
 .swipe-card img {
   width: 100%;
   height: 70%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #000;
   display: block;
   /* pointer-events must be auto (default) — the onPointerDown handler on
      the <img> calls dragControls.start(e) to initiate swipe-to-decide.
