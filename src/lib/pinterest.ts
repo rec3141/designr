@@ -119,6 +119,25 @@ export async function getCurrentUser(
   return { id: data.id, username: data.username };
 }
 
+// Resolve a board by its vanity path (username/board-slug). Pinterest v5
+// accepts this as a board_id when the slash is URL-encoded. Works for any
+// public board, not just the authenticated user's own boards.
+export async function getBoardByPath(
+  token: string,
+  ownerSlashBoard: string
+): Promise<Board> {
+  // Pinterest wants the slash encoded as %2F in the path segment.
+  const encodedId = ownerSlashBoard.replace("/", "%2F");
+  const data = await pinterestGet<RawBoard>(token, `/boards/${encodedId}`);
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description ?? null,
+    pinCount: data.pin_count,
+    coverImageUrl: data.media?.image_cover_url ?? null,
+  };
+}
+
 export async function listBoards(token: string): Promise<Board[]> {
   const out: Board[] = [];
   let bookmark: string | undefined;
