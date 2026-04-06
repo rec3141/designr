@@ -110,15 +110,16 @@ export default function ReviewPage() {
     if (savedModel !== null) setModelId(savedModel);
   }, [router]);
 
-  useEffect(() => {
-    fetch("/api/models")
-      .then((r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.models)) setFreeModels(j.models);
-        else setFreeModels([]);
-      })
-      .catch(() => setFreeModels([]));
-  }, []);
+  // Model selector hidden — skip the /api/models probe for now.
+  // useEffect(() => {
+  //   fetch("/api/models")
+  //     .then((r) => r.json())
+  //     .then((j) => {
+  //       if (Array.isArray(j.models)) setFreeModels(j.models);
+  //       else setFreeModels([]);
+  //     })
+  //     .catch(() => setFreeModels([]));
+  // }, []);
 
   function onModelChange(v: string) {
     setModelId(v);
@@ -466,6 +467,7 @@ export default function ReviewPage() {
             <option value="original">Board order</option>
             <option value="score">Most liked first</option>
           </select>
+          {/* Model selector hidden — using Sonnet by default for now.
           <select
             className="model-select"
             value={modelId}
@@ -484,6 +486,7 @@ export default function ReviewPage() {
               </optgroup>
             )}
           </select>
+          */}
           <button className="btn" onClick={analyze} disabled={analyzing}>
             {analyzing ? (
               <><span className="spinner" /> Analyzing…</>
