@@ -56,6 +56,7 @@ export default function BoardsPage() {
         </button>
       </div>
 
+      {/* Board URL input hidden until Pinterest app is verified.
       <div className="url-input-row">
         <input
           className="url-input"
@@ -69,6 +70,7 @@ export default function BoardsPage() {
           {resolving ? "Loading…" : "Go"}
         </button>
       </div>
+      */}
 
       {error && <div className="error">{error}</div>}
       {!boards && !error && <div className="notice"><span className="spinner" /> Loading your boards…</div>}
