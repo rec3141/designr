@@ -167,14 +167,17 @@
         <li>
           <strong>Your Pinterest access token</strong> is stored inside an
           encrypted session cookie on your browser (via <code>iron-session</code>).
-          We do not keep a copy on a server-side database. When the cookie
-          expires or you sign out, the token is gone.
+          We do not keep a copy of that token in our application database.
+          When the cookie expires or you sign out, the token is gone.
         </li>
         <li>
-          <strong>Your swipe session</strong> (likes, dislikes, notes) lives in
-          your browser's <code>localStorage</code>. It never touches our
-          database because we don't have one. Clearing your browser data erases
-          it.
+          <strong>Your swipe session</strong> (likes, dislikes, notes, and
+          generated analysis/chat state) is stored in your browser's
+          <code>localStorage</code> for the current device and may also be
+          saved to our application database so you can reopen past sessions
+          later from the in-app library. Clearing your browser data removes the
+          local copy; deleting a saved session in the app removes the server
+          copy associated with your Pinterest account ID.
         </li>
         <li>
           <strong>Server logs</strong> may record routine request metadata (IP,
@@ -207,9 +210,10 @@
         </li>
         <li>
           <strong>Access, correction, deletion.</strong> Because we don't
-          persist your data server-side, there's typically nothing for us to
-          retrieve or delete on your behalf. If you believe we hold data about
-          you, email
+          store your Pinterest password and only retain limited saved-session
+          data tied to your Pinterest account ID, most deletion requests can be
+          handled directly inside the app. If you believe we hold data about
+          you that you cannot remove yourself, email
           <a href="mailto:hello@designr.quest">hello@designr.quest</a> and we'll
           respond within 30 days.
         </li>
