@@ -52,6 +52,7 @@ export type StoredSessionSummary = {
   sourceBoardName: string;
   mode: string;
   entryCount: number;
+  hasAnalysis: boolean;
 };
 
 export type StoredSessionRow = StoredSessionSummary & { data: string };
@@ -68,6 +69,7 @@ function rowToSummary(r: RawRow): StoredSessionSummary {
     sourceBoardName: String(r.source_board_name),
     mode: String(r.mode),
     entryCount: Number(r.entry_count),
+    hasAnalysis: !!r.has_analysis,
   };
 }
 
@@ -77,7 +79,8 @@ export async function listSessionsForUser(
   const db = await getClient();
   const res = await db.execute({
     sql: `SELECT id, user_id, created_at, updated_at, source_board_id,
-                 source_board_name, mode, entry_count
+                 source_board_name, mode, entry_count,
+                 (data LIKE '%"analysis":"%') AS has_analysis
             FROM sessions
            WHERE user_id = ?
            ORDER BY updated_at DESC`,

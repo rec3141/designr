@@ -13,6 +13,7 @@ type Summary = {
   sourceBoardName: string;
   mode: string;
   entryCount: number;
+  hasAnalysis?: boolean;
 };
 
 export default function LibraryPage() {
@@ -106,8 +107,9 @@ export default function LibraryPage() {
               <div className="library-meta">
                 <div className="library-name">{s.sourceBoardName}</div>
                 <div className="library-sub">
-                  {s.entryCount} swipes · {s.mode === "dual" ? "2P" : "solo"} ·{" "}
-                  updated {fmtDate(s.updatedAt)}
+                  {s.entryCount} swipes · {s.mode === "dual" ? "2P" : "solo"}
+                  {s.hasAnalysis && " · analyzed"}
+                  {" "}· updated {fmtDate(s.updatedAt)}
                 </div>
               </div>
               <div className="library-actions">
