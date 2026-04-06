@@ -123,8 +123,7 @@ export async function getCurrentUser(
 // Pinterest v5's board endpoint doesn't accept vanity paths reliably (the
 // %2F-encoded slash gets decoded by their API gateway before routing, causing
 // a 404). So we fetch the public board HTML page and extract the numeric
-// board ID from Pinterest's embedded JSON state, then use the v5 API with
-// the numeric ID.
+// board ID from Pinterest's embedded __PWS_DATA__ JSON state.
 export async function resolveBoardFromPage(
   pinterestPageUrl: string
 ): Promise<{ id: string; name: string; pinCount?: number }> {
@@ -140,31 +139,47 @@ export async function resolveBoardFromPage(
     throw new Error(`Failed to fetch Pinterest page (${res.status})`);
   const html = await res.text();
 
-  // Pinterest SSR pages embed board data in various patterns.
-  const idPatterns = [
-    /"board_id"\s*:\s*"(\d+)"/,
-    /"boardId"\s*:\s*"(\d+)"/,
-    /"id"\s*:\s*"(\d+)"[^}]*"type"\s*:\s*"board"/,
-    /data-board-id="(\d+)"/,
-  ];
+  // Pinterest's SSR pages embed a __PWS_DATA__ JSON blob containing board
+  // objects with base64-encoded node_ids like "Qm9hcmQ6MTIzNDU=" which
+  // decodes to "Board:12345". This is the most reliable pattern.
   let boardId: string | null = null;
-  for (const p of idPatterns) {
-    const m = html.match(p);
-    if (m) {
-      boardId = m[1];
-      break;
+
+  // Pattern 1: base64 node_id in board objects (most reliable).
+  const nodeIdMatch = html.match(
+    /"board"\s*:\s*\{\s*"node_id"\s*:\s*"([A-Za-z0-9+/=]+)"/
+  );
+  if (nodeIdMatch) {
+    try {
+      const decoded = Buffer.from(nodeIdMatch[1], "base64").toString("utf-8");
+      const idPart = decoded.replace(/^Board:/, "");
+      if (/^\d+$/.test(idPart)) boardId = idPart;
+    } catch { /* not valid base64, try next pattern */ }
+  }
+
+  // Pattern 2: direct numeric id patterns (fallback).
+  if (!boardId) {
+    const fallbacks = [
+      /"board_id"\s*:\s*"(\d+)"/,
+      /"boardId"\s*:\s*"(\d+)"/,
+    ];
+    for (const p of fallbacks) {
+      const m = html.match(p);
+      if (m) { boardId = m[1]; break; }
     }
   }
+
   if (!boardId) throw new Error("Could not find board ID on that page");
 
-  // Extract name from og:title or <title>.
-  const ogMatch = html.match(
-    /<meta\s+(?:property|name)="og:title"\s+content="([^"]+)"/
-  );
+  // Extract name from <title>. Format: "190 Design Brainstorm ideas | ..."
   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/);
-  let name = ogMatch?.[1] ?? titleMatch?.[1] ?? "Board";
-  // Pinterest titles often end with " | Pinterest" — strip that.
-  name = name.replace(/\s*[|–—]\s*Pinterest.*$/i, "").trim();
+  let name = titleMatch?.[1] ?? "Board";
+  // Strip Pinterest's title decoration:
+  //   "190 Design Brainstorm ideas | house interior, ..."  →  "Design Brainstorm"
+  name = name
+    .replace(/^\d+\s+/, "")             // leading pin count
+    .replace(/\s+ideas?\b.*$/i, "")     // " ideas | keywords..."
+    .replace(/\s*[|–—]\s*Pinterest.*$/i, "") // " | Pinterest" suffix
+    .trim() || "Board";
 
   return { id: boardId, name };
 }
@@ -200,6 +215,69 @@ export async function listBoards(token: string): Promise<Board[]> {
         pinCount: b.pin_count,
         coverImageUrl: b.media?.image_cover_url ?? null,
       });
+    }
+    bookmark = data.bookmark;
+  } while (bookmark);
+  return out;
+}
+
+export type BoardSection = {
+  id: string;
+  title: string;
+  pinCount?: number;
+};
+
+export async function listBoardSections(
+  token: string,
+  boardId: string
+): Promise<BoardSection[]> {
+  const out: BoardSection[] = [];
+  let bookmark: string | undefined;
+  do {
+    const data: {
+      items: Array<{ id: string; title?: string; pin_count?: number }>;
+      bookmark?: string;
+    } = await pinterestGet(token, `/boards/${boardId}/sections`, {
+      page_size: "100",
+      ...(bookmark ? { bookmark } : {}),
+    });
+    for (const s of data.items) {
+      out.push({
+        id: s.id,
+        title: s.title ?? "Untitled",
+        pinCount: s.pin_count,
+      });
+    }
+    bookmark = data.bookmark;
+  } while (bookmark);
+  return out;
+}
+
+export async function listSectionPins(
+  token: string,
+  sectionId: string,
+  max = 200
+): Promise<Pin[]> {
+  const out: Pin[] = [];
+  let bookmark: string | undefined;
+  do {
+    const data: { items: RawPin[]; bookmark?: string } = await pinterestGet(
+      token,
+      `/board_sections/${sectionId}/pins`,
+      { page_size: "100", ...(bookmark ? { bookmark } : {}) }
+    );
+    for (const p of data.items) {
+      const imageUrl = pickImage(p.media);
+      if (!imageUrl) continue;
+      out.push({
+        id: p.id,
+        title: p.title ?? null,
+        description: p.description ?? null,
+        link: p.link ?? null,
+        boardId: p.board_id ?? null,
+        imageUrl,
+      });
+      if (out.length >= max) return out;
     }
     bookmark = data.bookmark;
   } while (bookmark);

@@ -621,6 +621,37 @@ a { color: inherit; text-decoration: none; }
 }
 .toolbar h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
 
+.section-picker {
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+}
+.section-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.section-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-btn:hover { border-color: #4a4a55; background: var(--panel-2); }
+.section-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .url-input-row {
   display: flex;
   gap: 8px;

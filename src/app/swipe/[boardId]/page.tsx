@@ -23,6 +23,9 @@ export default function SwipePage() {
   const boardId = params.boardId;
   const boardName = search.get("name") || "Board";
 
+  type Section = { id: string; title: string; pinCount?: number };
+  const [sections, setSections] = useState<Section[] | null>(null);
+  const [selectedSection, setSelectedSection] = useState<string | null>(null); // null = not yet chosen, "" = all pins
   const [pins, setPins] = useState<Pin[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
@@ -54,13 +57,36 @@ export default function SwipePage() {
     currentNoteRef.current = currentNote;
   }, [currentNote]);
 
+  // Step 1: check for board sections. If none, auto-select "all pins".
   useEffect(() => {
-    fetch(`/api/pinterest/boards/${boardId}/pins`)
+    fetch(`/api/pinterest/boards/${boardId}/sections`)
       .then(async (r) => {
-        if (r.status === 401) {
-          router.replace("/");
-          return null;
+        if (r.status === 401) { router.replace("/"); return null; }
+        const j = await r.json();
+        if (!r.ok) return []; // sections not available — fall through
+        return (j.sections ?? []) as Section[];
+      })
+      .then((s) => {
+        if (!s) return;
+        if (s.length === 0) {
+          // No sections — load all pins directly.
+          setSelectedSection("");
+        } else {
+          setSections(s);
         }
+      })
+      .catch(() => setSelectedSection("")); // on error, just load all pins
+  }, [boardId, router]);
+
+  // Step 2: load pins once a section (or "all") is selected.
+  useEffect(() => {
+    if (selectedSection === null) return; // still showing section picker
+    const url = selectedSection
+      ? `/api/pinterest/sections/${selectedSection}/pins`
+      : `/api/pinterest/boards/${boardId}/pins`;
+    fetch(url)
+      .then(async (r) => {
+        if (r.status === 401) { router.replace("/"); return null; }
         const ct = r.headers.get("content-type") || "";
         if (!ct.includes("application/json")) {
           const body = await r.text();
@@ -75,7 +101,7 @@ export default function SwipePage() {
       })
       .then((p) => p && setPins(p))
       .catch((e) => setError(e.message));
-  }, [boardId, router]);
+  }, [boardId, selectedSection, router]);
 
   function shufflePins() {
     if (!pins || pins.length === 0 || entries.length > 0) return;
@@ -521,7 +547,32 @@ export default function SwipePage() {
         </div>
       </div>
       {error && <div className="error">{error}</div>}
-      {!pins && !error && <div className="notice"><span className="spinner" /> Loading pins…</div>}
+
+      {/* Section picker — shown when the board has sections and none is selected yet. */}
+      {sections && selectedSection === null && !error && (
+        <div className="section-picker">
+          <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>This board has sections — pick one or swipe all</h3>
+          <div className="section-grid">
+            <button className="section-btn" onClick={() => setSelectedSection("")}>
+              All pins
+            </button>
+            {sections.map((s) => (
+              <button
+                key={s.id}
+                className="section-btn"
+                onClick={() => setSelectedSection(s.id)}
+              >
+                {s.title}
+                {s.pinCount != null && <span className="section-count">{s.pinCount}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selectedSection !== null && !pins && !error && (
+        <div className="notice"><span className="spinner" /> Loading pins…</div>
+      )}
       {pins && pins.length === 0 && <div className="notice">No pins in this board.</div>}
       {current && (
         <>
