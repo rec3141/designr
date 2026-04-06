@@ -127,7 +127,7 @@ export default function SwipePage() {
   useEffect(() => {
     if (selectedSection === null) return; // still showing section picker
     const url = selectedSection
-      ? `/api/pinterest/sections/${selectedSection}/pins`
+      ? `/api/pinterest/boards/${boardId}/sections/${selectedSection}/pins`
       : `/api/pinterest/boards/${boardId}/pins`;
     fetch(url)
       .then(async (r) => {

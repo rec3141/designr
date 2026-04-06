@@ -244,17 +244,56 @@ export async function listBoardSections(
     for (const s of data.items) {
       out.push({
         id: s.id,
-        title: s.title ?? "Untitled",
+        title: s.title || "Untitled",
         pinCount: s.pin_count,
       });
     }
     bookmark = data.bookmark;
   } while (bookmark);
+
+  return out;
+}
+
+// Scrape section data from a Pinterest board page's __PWS_DATA__ JSON
+// blob. The "boardsections" key contains a map of section objects with
+// proper titles, pin counts, and IDs — unlike the v5 API which often
+// returns empty titles.
+export async function scrapeBoardSections(
+  boardPageUrl: string
+): Promise<BoardSection[]> {
+  const res = await fetch(boardPageUrl, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (compatible; designr/1.0; +https://designr.quest)",
+      Accept: "text/html",
+    },
+    redirect: "follow",
+  });
+  if (!res.ok) return [];
+  const html = await res.text();
+
+  // Extract each section from the "boardsections" map in __PWS_DATA__.
+  // Pattern: "ID":{"node_id":"...","pin_count":N,"type":"board_section","title":"..."}
+  const sectionRegex =
+    /"(\d+)":\{"node_id":"[^"]*","pin_count":(\d+),"type":"board_section","title":"([^"]*)"/g;
+  const out: BoardSection[] = [];
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = sectionRegex.exec(html)) !== null) {
+    if (seen.has(m[1])) continue; // dedupe (appears twice in the page)
+    seen.add(m[1]);
+    out.push({
+      id: m[1],
+      title: JSON.parse(`"${m[3]}"`) || "Untitled", // unescape \u0026 etc.
+      pinCount: parseInt(m[2], 10),
+    });
+  }
   return out;
 }
 
 export async function listSectionPins(
   token: string,
+  boardId: string,
   sectionId: string,
   max = 200
 ): Promise<Pin[]> {
@@ -263,7 +302,7 @@ export async function listSectionPins(
   do {
     const data: { items: RawPin[]; bookmark?: string } = await pinterestGet(
       token,
-      `/board_sections/${sectionId}/pins`,
+      `/boards/${boardId}/sections/${sectionId}/pins`,
       { page_size: "100", ...(bookmark ? { bookmark } : {}) }
     );
     for (const p of data.items) {
