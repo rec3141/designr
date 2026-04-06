@@ -15,26 +15,34 @@ export type Board = {
   coverImageUrl?: string | null;
 };
 
-export type SwipeChoice = "like" | "dislike" | "superlike" | "superdislike";
+export type SwipeChoice = "like" | "dislike" | "superlike" | "superdislike" | "skip";
 
 export function isPositive(c: SwipeChoice): boolean {
   return c === "like" || c === "superlike";
+}
+
+export function isNeutral(c: SwipeChoice): boolean {
+  return c === "skip";
 }
 
 export function choiceWeight(c: SwipeChoice): number {
   switch (c) {
     case "superlike": return 3;
     case "like": return 1;
+    case "skip": return 0;
     case "dislike": return 0;
     case "superdislike": return 0;
   }
 }
 
 export function choiceLabel(c: SwipeChoice): string {
-  return c === "superlike" ? "SUPERLIKE"
-    : c === "like" ? "LIKE"
-    : c === "dislike" ? "DISLIKE"
-    : "SUPERDISLIKE";
+  switch (c) {
+    case "superlike": return "SUPERLIKE";
+    case "like": return "LIKE";
+    case "skip": return "SKIP";
+    case "dislike": return "DISLIKE";
+    case "superdislike": return "SUPERDISLIKE";
+  }
 }
 
 export type UserId = "A" | "B";

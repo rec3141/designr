@@ -14,10 +14,11 @@ type ChatTurn = {
   imageDataUrl?: string;
 };
 
-const CHOICES: SwipeChoice[] = ["superlike", "like", "dislike", "superdislike"];
+const CHOICES: SwipeChoice[] = ["superlike", "like", "skip", "dislike", "superdislike"];
 const CHOICE_GLYPH: Record<SwipeChoice, string> = {
   superlike: "★",
   like: "♥",
+  skip: "·",
   dislike: "✕",
   superdislike: "⊘",
 };
@@ -385,6 +386,7 @@ export default function ReviewPage() {
     switch (c) {
       case "superlike": return 3;
       case "like": return 1;
+      case "skip": return 0;
       case "dislike": return -1;
       case "superdislike": return -3;
     }
@@ -417,6 +419,7 @@ export default function ReviewPage() {
   const positives = sess.entries.filter((e) => isPositive(e.choice));
   const superLikes = sess.entries.filter((e) => e.choice === "superlike");
   const likes = sess.entries.filter((e) => e.choice === "like");
+  const skips = sess.entries.filter((e) => e.choice === "skip");
   const dislikes = sess.entries.filter((e) => e.choice === "dislike");
   const superDislikes = sess.entries.filter((e) => e.choice === "superdislike");
   const ANALYSIS_CAP = 100;
@@ -428,7 +431,7 @@ export default function ReviewPage() {
         <h2>
           Review — {sess.sourceBoardName}{" "}
           <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 14 }}>
-            · {superLikes.length}★ {likes.length}♥ {dislikes.length}✕ {superDislikes.length}⊘
+            · {superLikes.length}★ {likes.length}♥ {skips.length}· {dislikes.length}✕ {superDislikes.length}⊘
           </span>
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

@@ -253,16 +253,7 @@ export default function SwipePage() {
       cancelReview();
       return;
     }
-    if (!liveCurrent) return;
-    setCurrentNote("");
-    // Skip only advances the current turn — in dual mode the partner still
-    // gets a chance on this pin.
-    if (mode === "dual" && currentUser === "A") {
-      setCurrentUser("B");
-    } else {
-      setIndex((i) => i + 1);
-      if (mode === "dual") setCurrentUser("A");
-    }
+    commit("skip");
   }
 
   // Anything shorter than this is almost certainly an accidental shift tap
