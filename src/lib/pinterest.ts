@@ -128,7 +128,7 @@ export async function getCurrentUser(
 // Allowlist for Pinterest page fetches to prevent SSRF.
 function assertPinterestUrl(url: string): void {
   const parsed = new URL(url);
-  const allowed = ["www.pinterest.com", "pinterest.com"];
+  const allowed = ["www.pinterest.com", "pinterest.com", "pin.it"];
   if (
     !allowed.includes(parsed.hostname) &&
     !/^[a-z]{2}\.pinterest\.com$/.test(parsed.hostname)
@@ -294,8 +294,16 @@ export async function scrapeBoardSections(
         "Mozilla/5.0 (compatible; designr/1.0; +https://designr.quest)",
       Accept: "text/html",
     },
-    redirect: "follow",
+    redirect: "manual",
   });
+  if (res.status >= 300 && res.status < 400) {
+    const loc = res.headers.get("location");
+    if (loc) {
+      const resolved = new URL(loc, boardPageUrl).toString();
+      assertPinterestUrl(resolved);
+      return scrapeBoardSections(resolved);
+    }
+  }
   if (!res.ok) return [];
   const html = await res.text();
 
