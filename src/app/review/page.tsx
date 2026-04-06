@@ -432,6 +432,21 @@ export default function ReviewPage() {
           </span>
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {sess.currentIndex != null && sess.totalPins != null && sess.currentIndex < sess.totalPins && (
+            <button
+              className="btn"
+              onClick={() => {
+                const params = new URLSearchParams({
+                  name: sess.sourceBoardName,
+                  resume: String(sess.currentIndex),
+                });
+                router.push(`/swipe/${sess.sourceBoardId}?${params.toString()}`);
+              }}
+              title={`Continue from pin ${sess.currentIndex + 1} of ${sess.totalPins}`}
+            >
+              Continue ({sess.totalPins - sess.currentIndex} left)
+            </button>
+          )}
           <button className="btn ghost" onClick={startOver}>Start over</button>
           <button className="btn ghost" onClick={exportSession} title="Download notes, choices, and analysis as JSON">
             Export JSON

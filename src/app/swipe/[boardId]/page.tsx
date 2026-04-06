@@ -25,11 +25,36 @@ export default function SwipePage() {
 
   type Section = { id: string; title: string; pinCount?: number };
   const [sections, setSections] = useState<Section[] | null>(null);
-  const [selectedSection, setSelectedSection] = useState<string | null>(null); // null = not yet chosen, "" = all pins
+  const [selectedSection, setSelectedSection] = useState<string | null>(() => {
+    // If resuming from a session that had a section, skip the picker.
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw) as SwipeSession;
+      if (s.sourceBoardId === boardId && s.currentIndex != null)
+        return s.sectionId ?? "";
+    } catch { /* ignore */ }
+    return null;
+  }); // null = not yet chosen, "" = all pins
   const [pins, setPins] = useState<Pin[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [index, setIndex] = useState(0);
-  const [entries, setEntries] = useState<SwipeEntry[]>([]);
+  const [index, setIndex] = useState(() => {
+    // Resume from where we left off if returning from review.
+    const resume = parseInt(search.get("resume") ?? "", 10);
+    return Number.isFinite(resume) && resume > 0 ? resume : 0;
+  });
+  const [entries, setEntries] = useState<SwipeEntry[]>(() => {
+    // Restore entries if resuming.
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const s = JSON.parse(raw) as SwipeSession;
+      if (s.sourceBoardId === boardId && s.currentIndex != null) return s.entries;
+    } catch { /* ignore */ }
+    return [];
+  });
   const [currentNote, setCurrentNote] = useState("");
   // When non-null, the user clicked a past thumbnail and is re-picking that
   // entry. The number is an index into `entries`. Committing updates that
@@ -37,9 +62,29 @@ export default function SwipePage() {
   const [reviewingIdx, setReviewingIdx] = useState<number | null>(null);
   // Dual-user ("2P") mode: both users take turns reacting to each pin.
   // `mode` is locked in once the first entry is recorded.
-  const [mode, setMode] = useState<Mode>("single");
+  const [mode, setMode] = useState<Mode>(() => {
+    if (typeof window === "undefined") return "single";
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return "single";
+      const s = JSON.parse(raw) as SwipeSession;
+      if (s.sourceBoardId === boardId && s.currentIndex != null)
+        return (s.mode as Mode) ?? "single";
+    } catch { /* ignore */ }
+    return "single";
+  });
   const [currentUser, setCurrentUser] = useState<UserId>("A");
-  const [userNames, setUserNames] = useState<{ A: string; B: string }>({ A: "", B: "" });
+  const [userNames, setUserNames] = useState<{ A: string; B: string }>(() => {
+    if (typeof window === "undefined") return { A: "", B: "" };
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { A: "", B: "" };
+      const s = JSON.parse(raw) as SwipeSession;
+      if (s.sourceBoardId === boardId && s.currentIndex != null)
+        return { A: s.userNames?.A ?? "", B: s.userNames?.B ?? "" };
+    } catch { /* ignore */ }
+    return { A: "", B: "" };
+  });
   // Voice dictation state. `recordingFor` tracks whose mic is hot OR whose
   // transcription is in flight, so the UI keeps showing the rec-dot until the
   // text actually lands. `recorderRef` holds the live recorder between
@@ -303,6 +348,7 @@ export default function SwipePage() {
   }
 
   function buildSession(): SwipeSession {
+    const hasMore = pins !== null && index < pins.length;
     return {
       sourceBoardId: boardId,
       sourceBoardName: boardName,
@@ -316,6 +362,10 @@ export default function SwipePage() {
               B: mode === "dual" ? userNames.B || undefined : undefined,
             }
           : undefined,
+      // Progress info so the review page can offer "Continue swiping".
+      currentIndex: hasMore ? index : undefined,
+      totalPins: pins?.length,
+      sectionId: selectedSection || undefined,
     };
   }
 
@@ -539,9 +589,9 @@ export default function SwipePage() {
             <button
               className="btn ghost finish-btn"
               onClick={finishEarly}
-              title="Finish early and review (Esc)"
+              title="Save and review (Esc)"
             >
-              Finish ({entries.length})
+              Save ({entries.length})
             </button>
           )}
         </div>

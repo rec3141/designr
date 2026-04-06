@@ -55,6 +55,11 @@ export type SwipeSession = {
   createdAt: number;
   mode?: "single" | "dual";
   userNames?: { A?: string; B?: string };
+  // Progress tracking — set when finishing early so review page can
+  // offer a "Continue swiping" button to return to the deck.
+  currentIndex?: number;
+  totalPins?: number;
+  sectionId?: string;
   // Set once the session has been persisted to the backend. Lets the review
   // page update the existing row instead of creating duplicates on every
   // note/analysis change.
