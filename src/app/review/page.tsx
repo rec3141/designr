@@ -147,7 +147,11 @@ export default function ReviewPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entries: sess.entries, model: modelId || undefined }),
       });
-      const j = await res.json();
+      const text = await res.text();
+      let j: { analysis: string; modelUsed?: string; error?: string };
+      try { j = JSON.parse(text); } catch {
+        throw new Error(res.ok ? "Invalid response from server" : `Server error (${res.status})`);
+      }
       if (!res.ok) throw new Error(j.error || "Analysis failed");
       setAnalysis(j.analysis);
       if (j.modelUsed) setAnalysisModel(j.modelUsed);
@@ -235,7 +239,11 @@ export default function ReviewPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: modelId || undefined, messages: next }),
       });
-      const j = await res.json();
+      const chatText = await res.text();
+      let j: { reply: string; modelUsed?: string; error?: string };
+      try { j = JSON.parse(chatText); } catch {
+        throw new Error(res.ok ? "Invalid response from server" : `Server error (${res.status})`);
+      }
       if (!res.ok) throw new Error(j.error || "Chat failed");
       const finalChat = [...next, { role: "assistant" as const, text: j.reply }];
       setChat(finalChat);
