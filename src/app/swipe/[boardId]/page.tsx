@@ -434,7 +434,7 @@ export default function SwipePage() {
         return;
       }
       if (!current) return;
-      if (e.key === " " || e.code === "Space") {
+      if (e.key === " " || e.code === "Space" || e.key === "Enter") {
         e.preventDefault();
         skip();
         return;
