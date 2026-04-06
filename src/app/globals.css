@@ -70,6 +70,12 @@ a { color: inherit; text-decoration: none; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
 .btn.primary:hover { filter: brightness(1.05); }
 .btn.ghost { background: transparent; }
+.nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+}
+.nav-link:hover { color: var(--text); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .hero {

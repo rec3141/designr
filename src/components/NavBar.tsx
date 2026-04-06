@@ -22,23 +22,24 @@ export default function NavBar() {
 
   return (
     <nav style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      <a
-        href="https://designr.quest/privacy"
-        className="btn ghost"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Privacy
-      </a>
-      <a href="mailto:hello@designr.quest" className="btn ghost">
-        Contact
-      </a>
       <Link href="/boards" className="btn ghost">Boards</Link>
+      <Link href="/library" className="btn ghost">Library</Link>
       {authed && (
         <button className="btn ghost" onClick={logout}>
           Log out
         </button>
       )}
+      <a
+        href="https://designr.quest/privacy"
+        className="nav-link"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Privacy
+      </a>
+      <a href="mailto:hello@designr.quest" className="nav-link">
+        Contact
+      </a>
     </nav>
   );
 }
