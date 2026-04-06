@@ -3,7 +3,12 @@ import { analyzeStyle } from "@/lib/openrouter";
 import type { SwipeEntry } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
-  let body: { entries: SwipeEntry[]; model?: string };
+  let body: {
+    entries: SwipeEntry[];
+    model?: string;
+    userNames?: { A?: string; B?: string };
+    mode?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -13,7 +18,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_entries" }, { status: 400 });
   }
   try {
-    const { analysis, modelUsed } = await analyzeStyle(body.entries, body.model);
+    const { analysis, modelUsed } = await analyzeStyle(
+      body.entries,
+      body.model,
+      body.mode === "dual" ? body.userNames : undefined,
+    );
     return NextResponse.json({ analysis, modelUsed });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "failed";

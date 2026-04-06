@@ -145,7 +145,12 @@ export default function ReviewPage() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entries: sess.entries, model: modelId || undefined }),
+        body: JSON.stringify({
+          entries: sess.entries,
+          model: modelId || undefined,
+          userNames: sess.userNames,
+          mode: sess.mode,
+        }),
       });
       const text = await res.text();
       let j: { analysis: string; modelUsed?: string; error?: string };

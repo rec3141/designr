@@ -270,22 +270,26 @@ export type AnalyzeResult = {
 
 export async function analyzeStyle(
   entries: SwipeEntry[],
-  modelOverride?: string
+  modelOverride?: string,
+  userNames?: { A?: string; B?: string },
 ): Promise<AnalyzeResult> {
   // Detect dual-user sessions by presence of userId tags.
   const isDual = entries.some((e) => e.userId);
 
+  // Resolve display names — fall back to generic "User A" / "User B" / "you".
+  const nameA = userNames?.A || "User A";
+  const nameB = userNames?.B || "User B";
+  const soloName = userNames?.A || undefined; // undefined = generic "you"
+
   // Per-model image cap — Claude handles 100, most free models 8 or so.
-  // If a fallback chain kicks in (chatCompletion appends the default paid
-  // model), the *primary* model's cap is the one we size to — that keeps
-  // the request valid for whichever model actually answers, since the
-  // default paid model accepts >= the free cap.
   const primary = resolveModel(modelOverride);
   const cap = getImageCap(primary);
 
   const leadText = isDual
-    ? "Here are the images with verdicts and notes from both users. Each image is shown once, with each user's reaction stacked above it on its own line. Analyze their shared and divergent style."
-    : "Here are the images with the user's verdicts and notes. Analyze their style.";
+    ? `Here are the images with verdicts and notes from both users. ${nameA} is User A, ${nameB} is User B. Each image is shown once, with each user's reaction stacked above it on its own line. Analyze their shared and divergent style.`
+    : soloName
+      ? `Here are the images with ${soloName}'s verdicts and notes. Analyze their style.`
+      : "Here are the images with the user's verdicts and notes. Analyze their style.";
 
   const userContent: Exclude<ChatMessage["content"], string> = [
     { type: "text", text: leadText },
@@ -305,7 +309,9 @@ export async function analyzeStyle(
       const header = g.pin.title ? `title: ${g.pin.title}` : "";
       if (header) userContent.push({ type: "text", text: header });
       for (const v of ordered) {
-        const who = v.userId ? `[${v.userId}]` : "";
+        const who = v.userId
+          ? `[${v.userId === "A" ? nameA : nameB}]`
+          : "";
         const line = `${who}[${choiceLabel(v.choice)}]${
           v.note ? ` — note: ${v.note}` : ""
         }`;
@@ -325,12 +331,27 @@ export async function analyzeStyle(
     }
   }
 
+  // Build the system prompt, injecting real names when provided.
+  let systemPrompt: string;
+  if (isDual) {
+    systemPrompt = DUAL_ANALYSIS_SYSTEM_PROMPT
+      .replace(/User A/g, nameA)
+      .replace(/User B/g, nameB)
+      .replace(/\bA's territory/g, `${nameA}'s territory`)
+      .replace(/\bB's territory/g, `${nameB}'s territory`)
+      .replace(/'A is drawn to…'/g, `'${nameA} is drawn to…'`)
+      .replace(/'B pushes away from…'/g, `'${nameB} pushes away from…'`);
+  } else if (soloName) {
+    // Address the user by name instead of generic "you".
+    systemPrompt = ANALYSIS_SYSTEM_PROMPT +
+      `\n\nThe user's name is ${soloName}. You may address them by name occasionally for a personal touch, but still primarily use 'you'.`;
+  } else {
+    systemPrompt = ANALYSIS_SYSTEM_PROMPT;
+  }
+
   const { content, modelUsed } = await chatCompletion(
     [
-      {
-        role: "system",
-        content: isDual ? DUAL_ANALYSIS_SYSTEM_PROMPT : ANALYSIS_SYSTEM_PROMPT,
-      },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userContent },
     ],
     modelOverride
