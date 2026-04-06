@@ -86,6 +86,7 @@ type RawBoard = {
   description?: string | null;
   pin_count?: number;
   media?: { image_cover_url?: string | null };
+  owner?: { username?: string };
 };
 type RawPin = {
   id: string;
@@ -187,7 +188,7 @@ export async function resolveBoardFromPage(
 export async function getBoardById(
   token: string,
   boardId: string
-): Promise<Board> {
+): Promise<Board & { ownerUsername?: string }> {
   const data = await pinterestGet<RawBoard>(token, `/boards/${boardId}`);
   return {
     id: data.id,
@@ -195,6 +196,7 @@ export async function getBoardById(
     description: data.description ?? null,
     pinCount: data.pin_count,
     coverImageUrl: data.media?.image_cover_url ?? null,
+    ownerUsername: data.owner?.username ?? undefined,
   };
 }
 
