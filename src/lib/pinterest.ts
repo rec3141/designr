@@ -119,16 +119,61 @@ export async function getCurrentUser(
   return { id: data.id, username: data.username };
 }
 
-// Resolve a board by its vanity path (username/board-slug). Pinterest v5
-// accepts this as a board_id when the slash is URL-encoded. Works for any
-// public board, not just the authenticated user's own boards.
-export async function getBoardByPath(
+// Resolve a public board from its Pinterest page URL or username/slug path.
+// Pinterest v5's board endpoint doesn't accept vanity paths reliably (the
+// %2F-encoded slash gets decoded by their API gateway before routing, causing
+// a 404). So we fetch the public board HTML page and extract the numeric
+// board ID from Pinterest's embedded JSON state, then use the v5 API with
+// the numeric ID.
+export async function resolveBoardFromPage(
+  pinterestPageUrl: string
+): Promise<{ id: string; name: string; pinCount?: number }> {
+  const res = await fetch(pinterestPageUrl, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (compatible; designr/1.0; +https://designr.quest)",
+      Accept: "text/html",
+    },
+    redirect: "follow",
+  });
+  if (!res.ok)
+    throw new Error(`Failed to fetch Pinterest page (${res.status})`);
+  const html = await res.text();
+
+  // Pinterest SSR pages embed board data in various patterns.
+  const idPatterns = [
+    /"board_id"\s*:\s*"(\d+)"/,
+    /"boardId"\s*:\s*"(\d+)"/,
+    /"id"\s*:\s*"(\d+)"[^}]*"type"\s*:\s*"board"/,
+    /data-board-id="(\d+)"/,
+  ];
+  let boardId: string | null = null;
+  for (const p of idPatterns) {
+    const m = html.match(p);
+    if (m) {
+      boardId = m[1];
+      break;
+    }
+  }
+  if (!boardId) throw new Error("Could not find board ID on that page");
+
+  // Extract name from og:title or <title>.
+  const ogMatch = html.match(
+    /<meta\s+(?:property|name)="og:title"\s+content="([^"]+)"/
+  );
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/);
+  let name = ogMatch?.[1] ?? titleMatch?.[1] ?? "Board";
+  // Pinterest titles often end with " | Pinterest" — strip that.
+  name = name.replace(/\s*[|–—]\s*Pinterest.*$/i, "").trim();
+
+  return { id: boardId, name };
+}
+
+export async function getBoardById(
   token: string,
-  ownerSlashBoard: string
+  boardId: string
 ): Promise<Board> {
-  // Pinterest wants the slash encoded as %2F in the path segment.
-  const encodedId = ownerSlashBoard.replace("/", "%2F");
-  const data = await pinterestGet<RawBoard>(token, `/boards/${encodedId}`);
+  const data = await pinterestGet<RawBoard>(token, `/boards/${boardId}`);
   return {
     id: data.id,
     name: data.name,

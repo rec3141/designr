@@ -1,58 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { getBoardByPath } from "@/lib/pinterest";
+import { resolveBoardFromPage, getBoardById } from "@/lib/pinterest";
 
-// Resolve a Pinterest board URL or username/board-slug path to a Board object.
+// Resolve a Pinterest board URL or username/board-slug to a Board object.
 // Accepts: ?url=https://pinterest.com/username/boardname/
 //      or: ?path=username/boardname
+//
+// Flow: scrape the public Pinterest page for the numeric board ID, then
+// fetch full board details via the v5 API with the authenticated user's token.
 export async function GET(req: NextRequest) {
   const session = await getSession();
   const token = session.pinterest?.accessToken;
-  if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  if (!token)
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const rawUrl = req.nextUrl.searchParams.get("url") ?? "";
   const rawPath = req.nextUrl.searchParams.get("path") ?? "";
 
-  let boardPath: string | null = null;
+  let pageUrl: string | null = null;
 
   if (rawUrl) {
-    // Parse pinterest.com/{username}/{board-slug}/ from various URL formats.
     try {
       const u = new URL(rawUrl);
       if (!u.hostname.includes("pinterest")) {
-        return NextResponse.json({ error: "Not a Pinterest URL" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Not a Pinterest URL" },
+          { status: 400 }
+        );
       }
-      // Path is like /username/board-slug/ or /pin/123/ etc.
-      const segments = u.pathname.split("/").filter(Boolean);
-      // Must have at least username + board slug. Reject /pin/... paths.
-      if (segments.length >= 2 && segments[0] !== "pin") {
-        boardPath = `${segments[0]}/${segments[1]}`;
-      }
+      pageUrl = u.toString();
     } catch {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
   } else if (rawPath) {
-    // Direct username/board-slug input.
     const segments = rawPath.split("/").filter(Boolean);
     if (segments.length >= 2) {
-      boardPath = `${segments[0]}/${segments[1]}`;
+      pageUrl = `https://www.pinterest.com/${segments[0]}/${segments[1]}/`;
     }
   }
 
-  if (!boardPath) {
+  if (!pageUrl) {
     return NextResponse.json(
-      { error: "Provide ?url=<pinterest board URL> or ?path=<username/board-slug>" },
+      {
+        error:
+          "Provide ?url=<pinterest board URL> or ?path=<username/board-slug>",
+      },
       { status: 400 }
     );
   }
 
   try {
-    const board = await getBoardByPath(token, boardPath);
-    return NextResponse.json({ board });
+    // Step 1: scrape the page for the numeric board ID.
+    const { id, name } = await resolveBoardFromPage(pageUrl);
+
+    // Step 2: try v5 API for full details (pin count, cover image).
+    // This may fail for boards the user doesn't own in trial mode,
+    // so we fall back gracefully.
+    try {
+      const board = await getBoardById(token, id);
+      return NextResponse.json({ board });
+    } catch {
+      // Trial-mode fallback: return what we scraped.
+      return NextResponse.json({
+        board: { id, name, description: null, pinCount: null, coverImageUrl: null },
+      });
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "failed";
-    // Pinterest returns 404 for boards that don't exist or aren't accessible.
-    const status = msg.includes("404") ? 404 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return NextResponse.json({ error: msg }, { status: 404 });
   }
 }

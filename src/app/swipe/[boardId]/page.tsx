@@ -77,6 +77,17 @@ export default function SwipePage() {
       .catch((e) => setError(e.message));
   }, [boardId, router]);
 
+  function shufflePins() {
+    if (!pins || pins.length === 0 || entries.length > 0) return;
+    // Fisher-Yates shuffle.
+    const arr = [...pins];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    setPins(arr);
+  }
+
   const liveCurrent = pins?.[index];
   const liveNext = pins?.[index + 1];
   const isReviewing = reviewingIdx !== null;
@@ -484,6 +495,15 @@ export default function SwipePage() {
         </div>
         <div className="swipe-progress">
           <span>{boardName} · {progressLabel}</span>
+          {pins && entries.length === 0 && !isReviewing && (
+            <button
+              className="btn ghost finish-btn"
+              onClick={shufflePins}
+              title="Randomize pin order"
+            >
+              🔀 Shuffle
+            </button>
+          )}
           {isReviewing && (
             <span className="review-pill">
               Re-picking · <button className="link-btn" onClick={cancelReview}>cancel (Esc)</button>
